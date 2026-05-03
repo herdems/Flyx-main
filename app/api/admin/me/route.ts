@@ -1,76 +1,66 @@
-/**
- * Admin User Info API
- * GET /api/admin/me - Get current admin user info with roles and permissions
- * MIGRATED: Uses D1 database adapter for Cloudflare compatibility
- * Requirements: 6.3
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAdapter } from '@/lib/db/adapter';
-import { AdminAuthService } from '@/app/admin/middleware/auth-server';
+import { ADMIN_COOKIE, verifyJWTWithFallback } from '@/lib/utils/admin-auth';
+
+const categories = [
+  'analytics_view',
+  'analytics_export',
+  'user_management',
+  'content_moderation',
+  'system_settings',
+  'user_data_access',
+  'audit_logs',
+  'bot_detection',
+  'system_health',
+];
 
 export async function GET(request: NextRequest) {
-  const requestId = `admin_me_${Date.now()}`;
-  
   try {
-    const authResult = await AdminAuthService.authenticateRequest(request);
-    
-    if (!authResult.success || !authResult.user) {
+    const token =
+      request.cookies.get(ADMIN_COOKIE)?.value ||
+      request.headers.get('Authorization')?.replace('Bearer ', '');
+
+    if (!token) {
       return NextResponse.json(
-        { error: authResult.error || 'Authentication required' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    const user = authResult.user;
-    const now = Date.now();
-    
-    try {
-      const adapter = getAdminAdapter();
-      await adapter.execute(
-        'UPDATE admin_users SET last_login = ? WHERE id = ?',
-        [now, user.id]
+    const decoded = await verifyJWTWithFallback(token);
+
+    if (!decoded || decoded.userId !== 'admin') {
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
+        { status: 401 }
       );
-    } catch (updateError) {
-      console.error(`[${requestId}] Failed to update last login:`, updateError);
     }
 
-    const userInfo = {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      permissions: user.permissions,
-      specificPermissions: user.specificPermissions,
-      createdAt: user.createdAt,
-      lastLogin: now,
-      permissionScope: AdminAuthService.getUserPermissionScope(user)
-    };
+    const now = Date.now();
 
     return NextResponse.json({
       success: true,
-      user: userInfo,
-      requestId,
-    });
-    
-  } catch (error) {
-    const errorInfo = error instanceof Error ? {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    } : {
-      name: 'UnknownError',
-      message: String(error),
-      stack: undefined
-    };
-    
-    console.error(`[${requestId}] Admin me endpoint failed:`, errorInfo);
-    
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        requestId,
-        debug: process.env.NODE_ENV === 'development' ? errorInfo : undefined
+      user: {
+        id: 'admin',
+        username: 'admin',
+        role: 'super_admin',
+        permissions: ['super_admin'],
+        specificPermissions: categories,
+        createdAt: now,
+        lastLogin: now,
+        permissionScope: {
+          role: 'super_admin',
+          permissions: ['super_admin'],
+          categories,
+          isAdmin: true,
+          isSuperAdmin: true,
+        },
       },
+    });
+  } catch (error) {
+    console.error('Self-hosted admin me error:', error);
+
+    return NextResponse.json(
+      { error: 'Authentication failed' },
       { status: 500 }
     );
   }
