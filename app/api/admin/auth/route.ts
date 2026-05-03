@@ -1,23 +1,18 @@
-/**
- * Admin Authentication API
- * POST /api/admin/auth - Login
- * DELETE /api/admin/auth - Logout
- * 
- * Migrated to use D1 database and Web Crypto API for Cloudflare Workers compatibility.
- * Requirements: 6.1
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  authenticateAdmin, 
-  ADMIN_COOKIE 
-} from '@/lib/utils/admin-auth';
+import { ADMIN_COOKIE, createJWT } from '@/lib/utils/admin-auth';
 
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
 
-    console.log('[Admin Auth] Login attempt for user:', username);
+    const adminSecret = process.env.ADMIN_SECRET;
+
+    if (!adminSecret) {
+      return NextResponse.json(
+        { error: 'ADMIN_SECRET is not configured' },
+        { status: 500 }
+      );
+    }
 
     if (!username || !password) {
       return NextResponse.json(
@@ -26,50 +21,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Authenticate using the updated admin-auth utilities
-    const authResult = await authenticateAdmin(username, password);
+    const isValid =
+      username === 'admin' &&
+      password === adminSecret;
 
-    console.log('[Admin Auth] Auth result:', { 
-      success: authResult.success, 
-      error: authResult.error,
-      hasUser: !!authResult.user,
-      hasToken: !!authResult.token
-    });
-
-    // Check if D1 is not available - return 404
-    if (authResult.error === 'D1 database not available. Ensure you are running in Cloudflare Workers/Pages environment with D1 binding configured in wrangler.toml') {
-      return new NextResponse(null, { status: 404 });
-    }
-
-    if (!authResult.success || !authResult.token || !authResult.user) {
+    if (!isValid) {
       return NextResponse.json(
-        { error: authResult.error || 'Invalid credentials' },
+        { error: 'Invalid credentials' },
         { status: 401 }
       );
     }
 
-    // Create response with cookie
+    const token = await createJWT({
+      userId: 'admin',
+      username: 'admin',
+    });
+
     const response = NextResponse.json({
       success: true,
       user: {
-        id: authResult.user.id,
-        username: authResult.user.username,
-        role: authResult.user.role,
+        id: 'admin',
+        username: 'admin',
+        role: 'admin',
       },
     });
 
-    // Set secure cookie
-    response.cookies.set(ADMIN_COOKIE, authResult.token, {
+    response.cookies.set(ADMIN_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Changed from 'strict' to allow redirects
-      maxAge: 24 * 60 * 60, // 24 hours
-      path: '/', // Ensure cookie is available on all paths
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60,
+      path: '/',
     });
 
     return response;
   } catch (error) {
     console.error('Admin auth error:', error);
+
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }
@@ -78,18 +66,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  try {
-    const response = NextResponse.json({ success: true });
-    
-    // Delete cookie
-    response.cookies.delete(ADMIN_COOKIE);
-
-    return response;
-  } catch (error) {
-    console.error('Admin logout error:', error);
-    return NextResponse.json(
-      { error: 'Logout failed' },
-      { status: 500 }
-    );
-  }
+  const response = NextResponse.json({ success: true });
+  response.cookies.delete(ADMIN_COOKIE);
+  return response;
 }
