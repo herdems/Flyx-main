@@ -1,0 +1,51 @@
+services:
+  flyx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        NEXT_PUBLIC_TMDB_API_KEY: ${NEXT_PUBLIC_TMDB_API_KEY:?}
+        NEXT_PUBLIC_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}
+        NEXT_PUBLIC_CF_STREAM_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}/stream
+        NEXT_PUBLIC_CF_TV_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}
+        NEXT_PUBLIC_CF_ANALYTICS_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/analytics
+        NEXT_PUBLIC_CF_SYNC_URL: ${NEXT_PUBLIC_PROXY_URL:?}/sync
+        NEXT_PUBLIC_DLHD_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/dlhd
+        NEXT_PUBLIC_CDN_LIVE_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/cdn-live
+        NEXT_PUBLIC_CF_TMDB_URL: ${NEXT_PUBLIC_PROXY_URL:?}/tmdb
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      PROXY_PORT: 8787
+
+      NEXT_PUBLIC_TMDB_API_KEY: ${NEXT_PUBLIC_TMDB_API_KEY:?}
+      TMDB_API_KEY: ${TMDB_API_KEY:?}
+
+      NEXT_PUBLIC_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}
+      NEXT_PUBLIC_CF_STREAM_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}/stream
+      NEXT_PUBLIC_CF_TV_PROXY_URL: ${NEXT_PUBLIC_PROXY_URL:?}
+      NEXT_PUBLIC_CF_ANALYTICS_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/analytics
+      NEXT_PUBLIC_CF_SYNC_URL: ${NEXT_PUBLIC_PROXY_URL:?}/sync
+      NEXT_PUBLIC_DLHD_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/dlhd
+      NEXT_PUBLIC_CDN_LIVE_WORKER_URL: ${NEXT_PUBLIC_PROXY_URL:?}/cdn-live
+      NEXT_PUBLIC_CF_TMDB_URL: ${NEXT_PUBLIC_PROXY_URL:?}/tmdb
+
+      JWT_SECRET: ${JWT_SECRET:?}
+      SIGNING_SECRET: ${SIGNING_SECRET:?}
+      WATERMARK_SECRET: ${WATERMARK_SECRET:?}
+      ADMIN_SECRET: ${ADMIN_SECRET:?}
+      ENABLE_VIDSRC_PROVIDER: ${ENABLE_VIDSRC_PROVIDER:-false}
+
+    volumes:
+      - flyx-data:/app/data
+
+    expose:
+      - "3000"
+      - "8787"
+
+volumes:
+  flyx-data:
